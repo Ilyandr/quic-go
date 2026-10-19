@@ -1690,28 +1690,76 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 		s.tracer.ReceivedTransportParameters(params)
 	}
 
-	// check the initial_source_connection_id
+	// Check the initial_source_connection_id.
 	if params.InitialSourceConnectionID != s.handshakeDestConnID {
-		return fmt.Errorf("expected initial_source_connection_id to equal %s, is %s", s.handshakeDestConnID, params.InitialSourceConnectionID)
+		return fmt.Errorf(
+			"expected initial_source_connection_id to equal %s, is %s",
+			s.handshakeDestConnID,
+			params.InitialSourceConnectionID,
+		)
 	}
 
+	// KeyHop QUIC Window Lock.
+	// Enforce custom receive windows for all incoming clients.
 	if s.perspective == protocol.PerspectiveServer {
+		const (
+			requiredStreamWindow protocol.ByteCount = 8388608
+			requiredConnWindow   protocol.ByteCount = 20971520
+		)
+
+		if params.InitialMaxStreamDataBidiLocal != requiredStreamWindow ||
+			params.InitialMaxStreamDataBidiRemote != requiredStreamWindow ||
+			params.InitialMaxStreamDataUni != requiredStreamWindow ||
+			params.InitialMaxData != requiredConnWindow {
+
+			s.logger.Infof(
+				"KeyHop QUIC Lock: rejected client %s (stream_local=%d, stream_remote=%d, stream_uni=%d, conn=%d)",
+				s.RemoteAddr(),
+				params.InitialMaxStreamDataBidiLocal,
+				params.InitialMaxStreamDataBidiRemote,
+				params.InitialMaxStreamDataUni,
+				params.InitialMaxData,
+			)
+
+			return fmt.Errorf(
+				"KeyHop QUIC Lock: incompatible receive windows",
+			)
+		}
+
+		s.logger.Infof(
+			"KeyHop QUIC Lock: accepted client %s",
+			s.RemoteAddr(),
+		)
+
 		return nil
 	}
-	// check the original_destination_connection_id
+
+	// Check the original_destination_connection_id.
 	if params.OriginalDestinationConnectionID != s.origDestConnID {
-		return fmt.Errorf("expected original_destination_connection_id to equal %s, is %s", s.origDestConnID, params.OriginalDestinationConnectionID)
+		return fmt.Errorf(
+			"expected original_destination_connection_id to equal %s, is %s",
+			s.origDestConnID,
+			params.OriginalDestinationConnectionID,
+		)
 	}
-	if s.retrySrcConnID != nil { // a Retry was performed
+
+	if s.retrySrcConnID != nil { // A Retry was performed.
 		if params.RetrySourceConnectionID == nil {
 			return errors.New("missing retry_source_connection_id")
 		}
 		if *params.RetrySourceConnectionID != *s.retrySrcConnID {
-			return fmt.Errorf("expected retry_source_connection_id to equal %s, is %s", s.retrySrcConnID, *params.RetrySourceConnectionID)
+			return fmt.Errorf(
+				"expected retry_source_connection_id to equal %s, is %s",
+				s.retrySrcConnID,
+				*params.RetrySourceConnectionID,
+			)
 		}
 	} else if params.RetrySourceConnectionID != nil {
-		return errors.New("received retry_source_connection_id, although no Retry was performed")
+		return errors.New(
+			"received retry_source_connection_id, although no Retry was performed",
+		)
 	}
+
 	return nil
 }
 
