@@ -1699,8 +1699,6 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 		)
 	}
 
-	// KeyHop QUIC Window Lock.
-	// Enforce custom receive windows for all incoming clients.
 	if s.perspective == protocol.PerspectiveServer {
 		const (
 			requiredStreamWindow protocol.ByteCount = 8388608
@@ -1712,25 +1710,11 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 			params.InitialMaxStreamDataUni != requiredStreamWindow ||
 			params.InitialMaxData != requiredConnWindow {
 
-			s.logger.Infof(
-				"KeyHop QUIC Lock: rejected client %s (stream_local=%d, stream_remote=%d, stream_uni=%d, conn=%d)",
-				s.RemoteAddr(),
-				params.InitialMaxStreamDataBidiLocal,
-				params.InitialMaxStreamDataBidiRemote,
-				params.InitialMaxStreamDataUni,
-				params.InitialMaxData,
-			)
-
-			return fmt.Errorf(
-				"KeyHop QUIC Lock: incompatible receive windows",
-			)
+			s.logger.Infof("EOF")
+			return fmt.Errorf("EOF")
 		}
 
-		s.logger.Infof(
-			"KeyHop QUIC Lock: accepted client %s",
-			s.RemoteAddr(),
-		)
-
+		s.logger.Infof("EOF")
 		return nil
 	}
 
@@ -1743,7 +1727,7 @@ func (s *connection) checkTransportParameters(params *wire.TransportParameters) 
 		)
 	}
 
-	if s.retrySrcConnID != nil { // A Retry was performed.
+	if s.retrySrcConnID != nil {
 		if params.RetrySourceConnectionID == nil {
 			return errors.New("missing retry_source_connection_id")
 		}
